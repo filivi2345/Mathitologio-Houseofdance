@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HOUSE OF DANCE KYPARISSIA - Management System</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React & ReactDOM 18 UMD CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Babel Standalone CDN -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase Compat CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <!-- Plus Jakarta Sans Font -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+    
+    * {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: #0c0d10;
+      color: #f3f4f6;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0c0d10;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #272a30;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #d89233;
+    }
+
+    .glass-card {
+      background: #16181d;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card-amber {
+      background: #16181d;
+      border: 1px solid rgba(216, 146, 51, 0.3);
+    }
+  </style>
+</head>
+<body class="selection:bg-amber-500 selection:text-black min-h-screen flex flex-col">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- FIREBASE EXACT CONFIGURATION ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyCKgMdlqt8RIhDPaGtHTKCkQpIF47A18vI",
+      authDomain: "mathitologio-house-of-dance.firebaseapp.com",
+      projectId: "mathitologio-house-of-dance",
+      storageBucket: "mathitologio-house-of-dance.firebasestorage.app",
+      messagingSenderId: "597618590361",
+      appId: "1:597618590361:web:e849b1f095a772c7996e08",
+      measurementId: "G-73L68MD6S4"
+    };
+
+    // Firebase Initialization
+    let db = null;
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      db = firebase.firestore();
+    } catch (e) {
+      console.warn("Firebase Init Error:", e);
+    }
+
+    // Default System Users
+    const DEFAULT_ADMIN = {
+      id: 'usr_admin',
+      username: 'admin@houseofdance.gr',
+      password: 'admin1234password',
+      name: 'Susan Jane Garrard (Admin)',
+      role: 'admin',
+      createdAt: new Date().toISOString()
+    };
+
+    const DEFAULT_STAFF = {
+      id: 'usr_staff',
+      username: 'staff@houseofdance.gr',
+      password: 'staff1234password',
+      name: 'Γραμματεία Σχολής',
+      role: 'staff',
+      createdAt: new Date().toISOString()
+    };
+
+    // 16 Dance Classes in Strict Sorting Order
+    const DANCE_CLASSES = [
+      'BABIES', 'PRE-PRIMARY', 'PRIMARY',
+      'GRADE 1', 'GRADE 2', 'GRADE 3', 'GRADE 4', 'GRADE 5', 'GRADE 6',
+      'INTERMEDIATE', 'ADVANCED 1',
+      'ADULT BALLET', 'ADULT MODERN',
+      'BODY CONDITIONING', 'MUSICAL THEATRE', 'HIP HOP'
+    ];
+
+    const WEEK_DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'];
+
+    // Initial Pre-Populated Sample Data
+    const SAMPLE_STUDENTS = [
+      {
+        id: 'std_101',
+        firstName: 'Μαρία',
+        lastName: 'Παπαδοπούλου',
+        dob: '2014-05-12',
+        amka: '12051401234',
+        parentsNames: 'Ελένη & Γιώργος Παπαδόπουλος',
+        parentsMobiles: '6912345678',
+        landline: '2761022111',
+        afm: '123456789',
+        doy: 'Καλαμάτας',
+        email: 'eleni.papadop@gmail.com',
+        address: '25ης Μαρτίου 14, Κυπαρισσία',
+        notes: 'Ήπιο άσθμα, έχει μαζί εισπνεόμενο',
+        classes: ['GRADE 4', 'HIP HOP'],
+        receiptDetails: 'Γεώργιος Παπαδόπουλος'
+      },
+      {
+        id: 'std_102',
+        firstName: 'Γιώργος',
+        lastName: 'Νικολόπουλος',
+        dob: '2018-09-03',
+        amka: '03091809876',
+        parentsNames: 'Αικατερίνη Νικολοπούλου',
+        parentsMobiles: '6987654321',
+        landline: '2761023456',
+        afm: '987654321',
+        doy: 'Καλαμάτας',
+        email: 'katerina.nikol@yahoo.com',
+        address: 'Ελευθερίου Βενιζέλου 8, Κυπαρισσία',
+        notes: '',
+        classes: ['BABIES'],
+        receiptDetails: 'Αικατερίνη Νικολοπούλου'
+      },
+      {
+        id: 'std_103',
+        firstName: 'Ελένη',
+        lastName: 'Αναστασοπούλου',
+        dob: '2012-11-20',
+        amka: '20111204321',
+        parentsNames: 'Δημήτριος Αναστασόπουλος',
+        parentsMobiles: '6933112244',
+        landline: '',
+        afm: '456789123',
+        doy: 'Καλαμάτας',
+        email: 'danastas@hotmail.com',
+        address: 'Φιλιατρά Μεσσηνίας',
+        notes: 'Αλλεργία στη σκόνη',
+        classes: ['GRADE 6', 'MUSICAL THEATRE'],
+        receiptDetails: 'Δημήτριος Αναστασόπουλος'
+      }
+    ];
+
+    const SAMPLE_ROOMS = ['Αίθουσα Prima', 'Studio B'];
+
+    const SAMPLE_SCHEDULE = [
+      { id: 'sch_1', day: 'Δευτέρα', startTime: '16:00', endTime: '17:00', danceClass: 'BABIES', classroom: 'Αίθουσα Prima', teacher: 'Susan Jane Garrard' },
+      { id: 'sch_2', day: 'Δευτέρα', startTime: '17:00', endTime: '18:15', danceClass: 'GRADE 4', classroom: 'Αίθουσα Prima', teacher: 'Susan Jane Garrard' },
+      { id: 'sch_3', day: 'Τρίτη', startTime: '18:00', endTime: '19:00', danceClass: 'HIP HOP', classroom: 'Studio B', teacher: 'Επισκέπτης Καθηγητής' },
+      { id: 'sch_4', day: 'Τετάρτη', startTime: '16:30', endTime: '17:30', danceClass: 'GRADE 1', classroom: 'Αίθουσα Prima', teacher: 'Susan Jane Garrard' },
+      { id: 'sch_5', day: 'Πέμπτη', startTime: '19:30', endTime: '20:45', danceClass: 'ADULT BALLET', classroom: 'Studio B', teacher: 'Susan Jane Garrard' }
+    ];
+
+    // Class Hierarchy Index Finder
+    const getMinClassIndex = (student) => {
+      if (!student.classes || student.classes.length === 0) return 999;
+      const indices = student.classes.map(c => {
+        const idx = DANCE_CLASSES.indexOf(c);
+        return idx === -1 ? 998 : idx;
+      });
+      return Math.min(...indices);
+    };
+
+    // Sort Students Function
+    const sortStudentsByClassHierarchy = (studentsList) => {
+      return [...studentsList].sort((a, b) => {
+        const idxA = getMinClassIndex(a);
+        const idxB = getMinClassIndex(b);
+        if (idxA !== idxB) return idxA - idxB;
+        const nameA = `${a.lastName || ''} ${a.firstName || ''}`;
+        const nameB = `${b.lastName || ''} ${b.firstName || ''}`;
+        return nameA.localeCompare(nameB, 'el');
+      });
+    };
+
+    function App() {
+      // --- AUTHENTICATION STATE ---
+      const [currentUser, setCurrentUser] = useState(() => {
+        try {
+          const s = localStorage.getItem('hod_v13_user');
+          return s ? JSON.parse(s) : null;
+        } catch (e) { return null; }
+      });
+
+      const [loginEmail, setLoginEmail] = useState('');
+      const [loginPassword, setLoginPassword] = useState('');
+      const [authError, setAuthError] = useState('');
+
+      // --- CLOUD DIAGNOSTIC BADGE STATE ---
+      // 'synced' (🟢), 'local' (🟡), 'error' (🔴)
+      const [cloudStatus, setCloudStatus] = useState('local');
+      const [cloudErrMsg, setCloudErrMsg] = useState('');
+
+      // --- DATA STATES ---
+      const [usersList, setUsersList] = useState(() => {
+        try {
+          const s = localStorage.getItem('hod_v13_users');
+          return s ? JSON.parse(s) : [DEFAULT_ADMIN, DEFAULT_STAFF];
+        } catch (e) { return [DEFAULT_ADMIN, DEFAULT_STAFF]; }
+      });
+
+      const [students, setStudents] = useState(() => {
+        try {
+          const s = localStorage.getItem('hod_v13_students');
+          return s ? JSON.parse(s) : SAMPLE_STUDENTS;
+        } catch (e) { return SAMPLE_STUDENTS; }
+      });
+
+      const [classrooms, setClassrooms] = useState(() => {
+        try {
+          const s = localStorage.getItem('hod_v13_rooms');
+          return s ? JSON.parse(s) : SAMPLE_ROOMS;
+        } catch (e) { return SAMPLE_ROOMS; }
+      });
+
+      const [schedule, setSchedule] = useState(() => {
+        try {
+          const s = localStorage.getItem('hod_v13_schedule');
+          return s ? JSON.parse(s) : SAMPLE_SCHEDULE;
+        } catch (e) { return SAMPLE_SCHEDULE; }
+      });
+
+      // --- UI NAVIGATION STATES ---
+      const [activeTab, setActiveTab] = useState('home');
+      const [toastMsg, setToastMsg] = useState('');
+      const [searchTerm, setSearchTerm] = useState('');
+      const [classFilter, setClassFilter] = useState('ALL');
+
+      // --- MODALS & FORMS ---
+      const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+      const [editingStudentId, setEditingStudentId] = useState(null);
+      const initialStudentForm = {
+        firstName: '', lastName: '', dob: '', amka: '',
+        parentsNames: '', parentsMobiles: '', landline: '', afm: '', doy: '',
+        email: '', address: '', notes: '', classes: [], receiptDetails: ''
+      };
+      const [studentForm, setStudentForm] = useState(initialStudentForm);
+
+      // Kartella Modal
+      const [kartellaStudent, setKartellaStudent] = useState(null);
+
+      // Email Center State
+      const [emailTargetClass, setEmailTargetClass] = useState('ALL');
+      const [emailSubject, setEmailSubject] = useState('');
+      const [emailBody, setEmailBody] = useState('');
+
+      // Print Center Filter
+      const [printClassFilter, setPrintClassFilter] = useState('ALL');
+
+      // Classroom Modal
+      const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+      const [newRoomName, setNewRoomName] = useState('');
+      const [editingRoomIndex, setEditingRoomIndex] = useState(null);
+      const [editRoomNameVal, setEditRoomNameVal] = useState('');
+
+      // Schedule Slot Modal
+      const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+      const [editingSlotId, setEditingSlotId] = useState(null);
+      const initialSlotForm = {
+        day: 'Δευτέρα', startTime: '16:00', endTime: '17:00',
+        danceClass: 'BABIES', classroom: classrooms[0] || 'Αίθουσα Prima', teacher: 'Susan Jane Garrard'
+      };
+      const [slotForm, setSlotForm] = useState(initialSlotForm);
+      const [scheduleRoomFilter, setScheduleRoomFilter] = useState('ALL');
+
+      // User Modal
+      const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+      const [userForm, setUserForm] = useState({ username: '', password: '', name: '', role: 'staff' });
+
+      // Custom Confirmation Modal
+      const [deleteModal, setDeleteModal] = useState({ open: false, title: '', message: '', onConfirm: null });
+
+      // --- FIREBASE REALTIME SYNC EFFECT ---
+      useEffect(() => {
+        if (!db) {
+          setCloudStatus('local');
+          return;
+        }
+
+        // 1. Sync Students Collection
+        const unsubStudents = db.collection('students').onSnapshot(
+          snapshot => {
+            const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (loaded.length > 0) {
+              setStudents(loaded);
+              try { localStorage.setItem('hod_v13_students', JSON.stringify(loaded)); } catch(e){}
+            }
+            setCloudStatus('synced');
+            setCloudErrMsg('');
+          },
+          err => {
+            console.warn("Students Firestore Error:", err);
+            setCloudStatus('error');
+            setCloudErrMsg(err.message || 'Error connecting to Firestore');
+          }
+        );
+
+        // 2. Sync Classrooms Collection
+        const unsubRooms = db.collection('classrooms').onSnapshot(
+          snapshot => {
+            const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (loaded.length > 0) {
+              const names = loaded.map(r => r.name || r.id);
+              setClassrooms(names);
+              try { localStorage.setItem('hod_v13_rooms', JSON.stringify(names)); } catch(e){}
+            }
+          },
+          err => console.warn("Rooms Firestore Error:", err)
+        );
+
+        // 3. Sync Schedule Collection
+        const unsubSchedule = db.collection('schedule').onSnapshot(
+          snapshot => {
+            const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (loaded.length > 0) {
+              setSchedule(loaded);
+              try { localStorage.setItem('hod_v13_schedule', JSON.stringify(loaded)); } catch(e){}
+            }
+          },
+          err => console.warn("Schedule Firestore Error:", err)
+        );
+
+        // 4. Sync Users Collection
+        const unsubUsers = db.collection('users').onSnapshot(
+          snapshot => {
+            const loaded = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (loaded.length > 0) {
+              setUsersList(loaded);
+              try { localStorage.setItem('hod_v13_users', JSON.stringify(loaded)); } catch(e){}
+            } else {
+              // Write default admin if empty
+              db.collection('users').doc(DEFAULT_ADMIN.id).set(DEFAULT_ADMIN);
+            }
+          },
+          err => console.warn("Users Firestore Error:", err)
+        );
+
+        return () => {
+          unsubStudents();
+          unsubRooms();
+          unsubSchedule();
+          unsubUsers();
+        };
+      }, []);
+
+      // LOCAL STORAGE BACKUP FALLBACKS
+      useEffect(() => {
+        try { localStorage.setItem('hod_v13_students', JSON.stringify(students)); } catch (e) {}
+      }, [students]);
+
+      useEffect(() => {
+        try { localStorage.setItem('hod_v13_rooms', JSON.stringify(classrooms)); } catch (e) {}
+      }, [classrooms]);
+
+      useEffect(() => {
+        try { localStorage.setItem('hod_v13_schedule', JSON.stringify(schedule)); } catch (e) {}
+      }, [schedule]);
+
+      useEffect(() => {
+        try { localStorage.setItem('hod_v13_users', JSON.stringify(usersList)); } catch (e) {}
+      }, [usersList]);
+
+      // --- TOAST NOTIFIER & COPY HELPERS ---
+      const showToast = (msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(''), 3500);
+      };
+
+      const copyToClipboard = (text, successMsg) => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text)
+            .then(() => showToast(successMsg))
+            .catch(() => fallbackCopy(text, successMsg));
+        } else {
+          fallbackCopy(text, successMsg);
+        }
+      };
+
+      const fallbackCopy = (text, successMsg) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          showToast(successMsg);
+        } catch (err) {
+          showToast('Αντιγράψτε χειροκίνητα το κείμενο.');
+        }
+        document.body.removeChild(textArea);
+      };
+
+      // --- AUTH HANDLERS ---
+      const handleLogin = (e) => {
+        e.preventDefault();
+        setAuthError('');
+        const trimmedEmail = loginEmail.trim().toLowerCase();
+        const found = usersList.find(u => u.username.toLowerCase() === trimmedEmail && u.password === loginPassword);
+        if (found) {
+          setCurrentUser(found);
+          localStorage.setItem('hod_v13_user', JSON.stringify(found));
+          showToast(`Καλώς ήρθατε, ${found.name}!`);
+        } else {
+          setAuthError('Λανθασμένο email ή κωδικός πρόσβασης.');
+        }
+      };
+
+      const handleLogout = () => {
+        setCurrentUser(null);
+        localStorage.removeItem('hod_v13_user');
+      };
+
+      // --- USER MANAGEMENT ---
+      const handleSaveUser = async (e) => {
+        e.preventDefault();
+        if (!userForm.username || !userForm.password || !userForm.name) return;
+        const newUser = {
+          id: 'usr_' + Date.now(),
+          ...userForm,
+          createdAt: new Date().toISOString()
+        };
+        setUsersList(prev => [...prev, newUser]);
+
+        if (db) {
+          try { await db.collection('users').doc(newUser.id).set(newUser); } catch(e){}
+        }
+
+        setUserForm({ username: '', password: '', name: '', role: 'staff' });
+        setIsUserModalOpen(false);
+        showToast('Ο νέος χρήστης δημιουργήθηκε!');
+      };
+
+      const handleDeleteUser = (userId) => {
+        if (userId === DEFAULT_ADMIN.id) {
+          showToast('Δεν επιτρέπεται η διαγραφή του αρχικού Admin!');
+          return;
+        }
+        setDeleteModal({
+          open: true,
+          title: 'Διαγραφή Χρήστη',
+          message: 'Επιβεβαιώνετε τη διαγραφή του λογαριασμού χρήστη;',
+          onConfirm: async () => {
+            setUsersList(prev => prev.filter(u => u.id !== userId));
+            if (db) {
+              try { await db.collection('users').doc(userId).delete(); } catch(e){}
+            }
+            showToast('Ο χρήστης διαγράφηκε.');
+            setDeleteModal({ open: false, title: '', message: '', onConfirm: null });
+          }
+        });
+      };
+
+      // --- STUDENT HANDLERS ---
+      const handleOpenNewStudentModal = () => {
+        setEditingStudentId(null);
+        setStudentForm(initialStudentForm);
+        setIsStudentModalOpen(true);
+      };
+
+      const handleOpenEditStudentModal = (student) => {
+        setEditingStudentId(student.id);
+        setStudentForm({ ...student });
+        setIsStudentModalOpen(true);
+      };
+
+      const handleToggleClass = (clsName) => {
+        setStudentForm(prev => {
+          const current = prev.classes || [];
+          return {
+            ...prev,
+            classes: current.includes(clsName)
+              ? current.filter(c => c !== clsName)
+              : [...current, clsName]
+          };
+        });
+      };
+
+      const handleSaveStudent = async (e) => {
+        e.preventDefault();
+        if (!studentForm.firstName || !studentForm.lastName) {
+          showToast('Συμπληρώστε Όνομα και Επίθετο!');
+          return;
+        }
+
+        const studentData = {
+          ...studentForm,
+          id: editingStudentId || ('std_' + Date.now())
+        };
+
+        setStudents(prev => {
+          const exists = prev.some(s => s.id === studentData.id);
+          if (exists) return prev.map(s => s.id === studentData.id ? studentData : s);
+          return [studentData, ...prev];
+        });
+
+        if (db) {
+          try {
+            await db.collection('students').doc(studentData.id).set(studentData);
+            setCloudStatus('synced');
+          } catch(err) {
+            console.warn("Firestore Student Save Error:", err);
+          }
+        }
+
+        setIsStudentModalOpen(false);
+        showToast(editingStudentId ? 'Η καρτέλα ενημερώθηκε!' : 'Ο μαθητής εγγράφηκε επιτυχώς!');
+      };
+
+      const handleDeleteStudent = (id) => {
+        setDeleteModal({
+          open: true,
+          title: 'Διαγραφή Μαθητή',
+          message: 'Επιβεβαιώνετε τη διαγραφή του μαθητή από το μητρώο;',
+          onConfirm: async () => {
+            setStudents(prev => prev.filter(s => s.id !== id));
+            if (db) {
+              try { await db.collection('students').doc(id).delete(); } catch(e){}
+            }
+            showToast('Ο μαθητής διαγράφηκε.');
+            setDeleteModal({ open: false, title: '', message: '', onConfirm: null });
+          }
+        });
+      };
+
+      // --- CLASSROOM HANDLERS ---
+      const handleAddRoom = async (e) => {
+        e.preventDefault();
+        const trimmed = newRoomName.trim();
+        if (!trimmed) return;
+        if (classrooms.includes(trimmed)) {
+          showToast('Η αίθουσα υπάρχει ήδη.');
+          return;
+        }
+        const updated = [...classrooms, trimmed];
+        setClassrooms(updated);
+        setNewRoomName('');
+
+        if (db) {
+          try { await db.collection('classrooms').doc('rm_' + Date.now()).set({ name: trimmed }); } catch(e){}
+        }
+        showToast('Προστέθηκε νέα αίθουσα!');
+      };
+
+      const handleDeleteRoom = (index) => {
+        const roomName = classrooms[index];
+        if (classrooms.length <= 1) {
+          showToast('Πρέπει να υπάρχει τουλάχιστον μία αίθουσα.');
+          return;
+        }
+        setDeleteModal({
+          open: true,
+          title: 'Διαγραφή Αίθουσας',
+          message: `Επιβεβαιώνετε τη διαγραφή της αίθουσας "${roomName}";`,
+          onConfirm: async () => {
+            const updated = classrooms.filter((_, i) => i !== index);
+            setClassrooms(updated);
+            showToast('Η αίθουσα διαγράφηκε.');
+            setDeleteModal({ open: false, title: '', message: '', onConfirm: null });
+          }
+        });
+      };
+
+      // --- SCHEDULE HANDLERS ---
+      const handleOpenNewSlotModal = () => {
+        setEditingSlotId(null);
+        setSlotForm({
+          day: 'Δευτέρα',
+          startTime: '16:00',
+          endTime: '17:00',
+          danceClass: DANCE_CLASSES[0],
+          classroom: classrooms[0] || 'Αίθουσα Prima',
+          teacher: 'Susan Jane Garrard'
+        });
+        setIsSlotModalOpen(true);
+      };
+
+      const handleOpenEditSlotModal = (slot) => {
+        setEditingSlotId(slot.id);
+        setSlotForm({ ...slot });
+        setIsSlotModalOpen(true);
+      };
+
+      const handleSaveSlot = async (e) => {
+        e.preventDefault();
+        const slotData = {
+          ...slotForm,
+          id: editingSlotId || ('sch_' + Date.now())
+        };
+
+        setSchedule(prev => {
+          const exists = prev.some(s => s.id === slotData.id);
+          if (exists) return prev.map(s => s.id === slotData.id ? slotData : s);
+          return [...prev, slotData];
+        });
+
+        if (db) {
+          try { await db.collection('schedule').doc(slotData.id).set(slotData); } catch(e){}
+        }
+
+        setIsSlotModalOpen(false);
+        showToast('Το μάθημα καταχωρήθηκε στο πρόγραμμα!');
+      };
+
+      const handleDeleteSlot = (slotId) => {
+        setDeleteModal({
+          open: true,
+          title: 'Διαγραφή Μαθήματος',
+          message: 'Διαγραφή του μαθήματος από το εβδομαδιαίο πρόγραμμα;',
+          onConfirm: async () => {
+            setSchedule(prev => prev.filter(s => s.id !== slotId));
+            if (db) {
+              try { await db.collection('schedule').doc(slotId).delete(); } catch(e){}
+            }
+            showToast('Το μάθημα αφαιρέθηκε.');
+            setDeleteModal({ open: false, title: '', message: '', onConfirm: null });
+          }
+        });
+      };
+
+      // --- EMAIL CENTER COMPUTED & COPY HANDLERS ---
+      const filteredRecipientEmails = useMemo(() => {
+        const recipients = emailTargetClass === 'ALL'
+          ? students.map(s => s.email).filter(Boolean)
+          : students.filter(s => (s.classes || []).includes(emailTargetClass)).map(s => s.email).filter(Boolean);
+        return [...new Set(recipients)];
+      }, [students, emailTargetClass]);
+
+      const formattedBccString = useMemo(() => {
+        return filteredRecipientEmails.join(', ');
+      }, [filteredRecipientEmails]);
+
+      const formattedFullEmailBody = useMemo(() => {
+        const headerText = `House of Dance Kyparissia\nweb: houseofdance.gr | e-mail: houseofdance15@yahoo.com\nΤηλ.: 27610 62192 | Κιν.: 6937470937\n----------------------------------------\n\n`;
+        const footerText = `\n\nΕυχαριστώ,\nSusan Jane Garrard\n----------------------------------------\nΠαρακαλώ μην απαντήσετε σε αυτό το μήνυμα μέσω e-mail.`;
+        return `${headerText}${emailSubject ? 'ΘΕΜΑ: ' + emailSubject + '\n\n' : ''}${emailBody}${footerText}`;
+      }, [emailSubject, emailBody]);
+
+      // --- PRINT CENTER (5 ENGINES WITH CLASS COLUMN FIRST) ---
+      
+      // Helper to generate clean standard printable HTML header
+      const getPrintStyles = () => `
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          body { font-family: system-ui, -apple-system, sans-serif; color: #111; line-height: 1.3; font-size: 11px; margin: 0; padding: 15px; }
+          .header { border-bottom: 2px solid #d89233; padding-bottom: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .title { font-size: 18px; font-weight: 900; text-transform: uppercase; margin: 0; color: #111; }
+          .subtitle { font-size: 11px; color: #555; margin-top: 2px; }
+          .badge { background: #f0f0f0; border: 1px solid #ccc; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #777; padding: 6px 8px; text-align: left; }
+          th { background: #eee; font-size: 10px; text-transform: uppercase; font-weight: 800; }
+          .box { width: 16px; height: 16px; border: 1.5px solid #000; display: inline-block; margin: 0 auto; }
+          .center { text-align: center; }
+          .btn-print { background: #d89233; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
+          @media print { .btn-print { display: none; } }
+        </style>
+      `;
+
+      const getPrintPreparedStudents = () => {
+        const rawList = printClassFilter === 'ALL'
+          ? students
+          : students.filter(s => (s.classes || []).includes(printClassFilter));
+        return sortStudentsByClassHierarchy(rawList);
+      };
+
+      // 1. ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ (5 Checkboxes)
+      const handlePrintPaymentList = () => {
+        const sortedList = getPrintPreparedStudents();
+        const win = window.open('', '_blank', 'width=950,height=1000');
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ - House of Dance</title>
+              ${getPrintStyles()}
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση A4</button>
+              <div class="header">
+                <div>
+                  <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                  <p class="subtitle">ΣΧΟΛΗ ΧΟΡΟΥ ΑΝΑΓΝΩΡΙΣΜΕΝΗ ΑΠΟ ΤΟ ΚΡΑΤΟΣ | Τηλ.: 27610 62192</p>
+                </div>
+                <div class="badge">Τμήμα: ${printClassFilter}</div>
+              </div>
+              <h3 style="margin: 5px 0;">ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:25px;" class="center">Α/Α</th>
+                    <th style="width:160px;">Τμήμα / Τμήματα</th>
+                    <th>Ονοματεπώνυμο Μαθητή</th>
+                    <th style="width:85px;">Ημ. Γέννησης</th>
+                    <th class="center" style="width:30px;">1</th>
+                    <th class="center" style="width:30px;">2</th>
+                    <th class="center" style="width:30px;">3</th>
+                    <th class="center" style="width:30px;">4</th>
+                    <th class="center" style="width:30px;">5</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortedList.map((s, i) => `
+                    <tr>
+                      <td class="center">${i + 1}</td>
+                      <td><strong>${(s.classes || []).join(', ')}</strong></td>
+                      <td>${s.lastName} ${s.firstName}</td>
+                      <td>${s.dob || '-'}</td>
+                      <td class="center"><div class="box"></div></td>
+                      <td class="center"><div class="box"></div></td>
+                      <td class="center"><div class="box"></div></td>
+                      <td class="center"><div class="box"></div></td>
+                      <td class="center"><div class="box"></div></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // 2. ΛΙΣΤΑ ΠΑΡΟΥΣΙΩΝ (12 Checkboxes + Signature)
+      const handlePrintAttendanceSheet = () => {
+        const sortedList = getPrintPreparedStudents();
+        const win = window.open('', '_blank', 'width=1000,height=1000');
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΛΙΣΤΑ ΠΑΡΟΥΣΙΩΝ - House of Dance</title>
+              ${getPrintStyles()}
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση A4</button>
+              <div class="header">
+                <div>
+                  <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                  <p class="subtitle">ΚΑΤΑΣΤΑΣΗ ΠΑΡΟΥΣΙΩΝ ΜΑΘΗΜΑΤΩΝ</p>
+                </div>
+                <div class="badge">Τμήμα: ${printClassFilter}</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:25px;" class="center">Α/Α</th>
+                    <th style="width:140px;">Τμήμα / Τμήματα</th>
+                    <th>Ονοματεπώνυμο</th>
+                    ${Array.from({length: 12}).map((_, i) => `<th class="center" style="width:20px;">${i+1}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortedList.map((s, i) => `
+                    <tr>
+                      <td class="center">${i + 1}</td>
+                      <td><strong>${(s.classes || []).join(', ')}</strong></td>
+                      <td>${s.lastName} ${s.firstName}</td>
+                      ${Array.from({length: 12}).map(() => `<td class="center"><div class="box"></div></td>`).join('')}
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div style="margin-top: 40px; display: flex; justify-between; font-size: 11px;">
+                <div>Μήνας: ____________________</div>
+                <div>Υπογραφή Καθηγητή/τριας: ________________________</div>
+              </div>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // 3. ΚΑΤΑΣΤΑΣΗ ΤΜΗΜΑΤΟΣ (Teacher Roster)
+      const handlePrintTeacherRoster = () => {
+        const sortedList = getPrintPreparedStudents();
+        const win = window.open('', '_blank', 'width=950,height=1000');
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΚΑΤΑΣΤΑΣΗ ΤΜΗΜΑΤΟΣ - House of Dance</title>
+              ${getPrintStyles()}
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση A4</button>
+              <div class="header">
+                <div>
+                  <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                  <p class="subtitle">ΚΑΤΑΣΤΑΣΗ ΤΜΗΜΑΤΟΣ & ΙΑΤΡΙΚΕΣ ΣΗΜΕΙΩΣΕΙΣ</p>
+                </div>
+                <div class="badge">Τμήμα: ${printClassFilter}</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:25px;" class="center">Α/Α</th>
+                    <th style="width:160px;">Τμήμα / Τμήματα</th>
+                    <th>Ονοματεπώνυμο Μαθητή</th>
+                    <th style="width:130px;">Τηλέφωνο Ανάγκης</th>
+                    <th>Ιατρικές Σημειώσεις / Αλλεργίες ⚠️</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortedList.map((s, i) => `
+                    <tr>
+                      <td class="center">${i + 1}</td>
+                      <td><strong>${(s.classes || []).join(', ')}</strong></td>
+                      <td>${s.lastName} ${s.firstName}</td>
+                      <td>${s.parentsMobiles || '-'}</td>
+                      <td>${s.notes ? `<strong style="color:#d89233;">⚠️ ${s.notes}</strong>` : '-'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // 4. ΚΑΤΑΛΟΓΟΣ ΕΠΙΚΟΙΝΩΝΙΑΣ (Parent Directory)
+      const handlePrintParentDirectory = () => {
+        const sortedList = getPrintPreparedStudents();
+        const win = window.open('', '_blank', 'width=1000,height=1000');
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΚΑΤΑΛΟΓΟΣ ΕΠΙΚΟΙΝΩΝΙΑΣ - House of Dance</title>
+              ${getPrintStyles()}
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση A4</button>
+              <div class="header">
+                <div>
+                  <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                  <p class="subtitle">ΚΑΤΑΛΟΓΟΣ ΕΠΙΚΟΙΝΩΝΙΑΣ ΓΟΝΕΩΝ & ΚΗΔΕΜΟΝΩΝ</p>
+                </div>
+                <div class="badge">Τμήμα: ${printClassFilter}</div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:25px;" class="center">Α/Α</th>
+                    <th style="width:140px;">Τμήμα / Τμήματα</th>
+                    <th>Ονοματεπώνυμο Μαθητή</th>
+                    <th>Ονοματεπώνυμο Γονέων</th>
+                    <th style="width:110px;">Κινητό</th>
+                    <th style="width:100px;">Σταθερό</th>
+                    <th>Email</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortedList.map((s, i) => `
+                    <tr>
+                      <td class="center">${i + 1}</td>
+                      <td><strong>${(s.classes || []).join(', ')}</strong></td>
+                      <td>${s.lastName} ${s.firstName}</td>
+                      <td>${s.parentsNames || '-'}</td>
+                      <td>${s.parentsMobiles || '-'}</td>
+                      <td>${s.landline || '-'}</td>
+                      <td>${s.email || '-'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // 5. ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ (Schedule A4 Landscape)
+      const handlePrintSchedule = () => {
+        const win = window.open('', '_blank', 'width=1050,height=1000');
+        const filteredSlots = scheduleRoomFilter === 'ALL'
+          ? schedule
+          : schedule.filter(s => s.classroom === scheduleRoomFilter);
+
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ - House of Dance</title>
+              <style>
+                @page { size: A4 landscape; margin: 10mm; }
+                body { font-family: system-ui, sans-serif; color: #111; line-height: 1.3; font-size: 11px; padding: 10px; }
+                .header { border-bottom: 2px solid #d89233; padding-bottom: 5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .title { font-size: 18px; font-weight: 900; margin: 0; }
+                .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 12px; }
+                .day-col { border: 1px solid #ccc; border-radius: 6px; overflow: hidden; background: #fafafa; }
+                .day-header { background: #d89233; color: #fff; padding: 6px; font-weight: bold; text-align: center; }
+                .slot-card { background: #fff; border: 1px solid #ddd; margin: 6px; padding: 6px; border-radius: 4px; }
+                .slot-time { font-weight: bold; color: #d89233; }
+                .slot-class { font-weight: bold; color: #111; font-size: 12px; }
+                .btn-print { background: #d89233; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+                @media print { .btn-print { display: none; } }
+              </style>
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση A4 Landscape</button>
+              <div class="header">
+                <div>
+                  <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                  <p style="margin:2px 0 0 0; font-size:11px; color:#666;">ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ ΜΑΘΗΜΑΤΩΝ</p>
+                </div>
+                <div style="font-weight:bold;">Αίθουσα: ${scheduleRoomFilter}</div>
+              </div>
+              <div class="grid">
+                ${WEEK_DAYS.map(day => {
+                  const daySlots = filteredSlots.filter(s => s.day === day).sort((a,b) => a.startTime.localeCompare(b.startTime));
+                  return `
+                    <div class="day-col">
+                      <div class="day-header">${day}</div>
+                      ${daySlots.map(s => `
+                        <div class="slot-card">
+                          <div class="slot-time">⏰ ${s.startTime} - ${s.endTime}</div>
+                          <div class="slot-class">${s.danceClass}</div>
+                          <div style="font-size:10px; color:#555;">📍 ${s.classroom}</div>
+                          <div style="font-size:10px; color:#777;">👤 ${s.teacher}</div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // Individual Kartella Print
+      const handlePrintKartella = (student) => {
+        const win = window.open('', '_blank', 'width=850,height=1000');
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ΚΑΡΤΕΛΑ ΜΑΘΗΤΗ - ${student.lastName} ${student.firstName}</title>
+              <style>
+                @page { size: A4 portrait; margin: 15mm; }
+                body { font-family: system-ui, sans-serif; color: #111; line-height: 1.4; font-size: 12px; padding: 15px; }
+                .header { border-bottom: 2px solid #d89233; padding-bottom: 8px; margin-bottom: 20px; text-align: center; }
+                .title { font-size: 20px; font-weight: bold; margin: 0; }
+                .section { margin-bottom: 16px; background: #fdfdfd; border: 1px solid #e0e0e0; padding: 12px; border-radius: 6px; }
+                .section-title { font-size: 12px; font-weight: bold; color: #d89233; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+                .row { display: flex; margin-bottom: 5px; }
+                .label { width: 190px; font-weight: bold; color: #555; }
+                .val { flex: 1; font-weight: 600; color: #111; }
+                .btn-print { background: #d89233; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 15px; }
+                @media print { .btn-print { display: none; } }
+              </style>
+            </head>
+            <body>
+              <button class="btn-print" onclick="window.print()">🖨️ Εκτύπωση Καρτέλας</button>
+              <div class="header">
+                <p class="title">HOUSE OF DANCE KYPARISSIA</p>
+                <p style="margin:4px 0 0 0; font-size:11px; color:#555;">ΕΠΙΣΗΜΗ ΚΑΡΤΕΛΑ ΜΑΘΗΤΗ / ΜΑΘΗΤΡΙΑΣ</p>
+              </div>
+
+              <div class="section">
+                <div class="section-title">1. Προσωπικά Στοιχεία</div>
+                <div class="row"><div class="label">Ονοματεπώνυμο:</div><div class="val">${student.lastName} ${student.firstName}</div></div>
+                <div class="row"><div class="label">Ημερομηνία Γέννησης:</div><div class="val">${student.dob || '-'}</div></div>
+                <div class="row"><div class="label">ΑΜΚΑ:</div><div class="val">${student.amka || '-'}</div></div>
+                <div class="row"><div class="label">Διεύθυνση Κατοικίας:</div><div class="val">${student.address || '-'}</div></div>
+              </div>
+
+              <div class="section">
+                <div class="section-title">2. Στοιχεία Γονέων & Επικοινωνίας</div>
+                <div class="row"><div class="label">Ονοματεπώνυμο Γονέων:</div><div class="val">${student.parentsNames || '-'}</div></div>
+                <div class="row"><div class="label">Κινητό Επικοινωνίας:</div><div class="val">${student.parentsMobiles || '-'}</div></div>
+                <div class="row"><div class="label">Σταθερό Τηλέφωνο:</div><div class="val">${student.landline || '-'}</div></div>
+                <div class="row"><div class="label">Email:</div><div class="val">${student.email || '-'}</div></div>
+              </div>
+
+              <div class="section">
+                <div class="section-title">3. Φορολογικά Στοιχεία & Αποδείξεις</div>
+                <div class="row"><div class="label">ΑΦΜ:</div><div class="val">${student.afm || '-'}</div></div>
+                <div class="row"><div class="label">ΔΟΥ:</div><div class="val">${student.doy || '-'}</div></div>
+                <div class="row"><div class="label">Όνομα Γονέα για Αποδείξεις:</div><div class="val">${student.receiptDetails || '-'}</div></div>
+              </div>
+
+              <div class="section">
+                <div class="section-title">4. Εγγραφή σε Τμήματα Χορού</div>
+                <div class="val" style="color:#d89233; font-size:13px;">${(student.classes || []).join(', ') || 'Κανένα τμήμα'}</div>
+              </div>
+
+              <div class="section">
+                <div class="section-title">5. Ιατρικές Σημειώσεις / Αλλεργίες</div>
+                <div class="val">${student.notes || 'Δεν έχουν καταγραφεί παρατηρήσεις.'}</div>
+              </div>
+
+              <div style="margin-top:40px; display:flex; justify-content:space-between; font-size:11px;">
+                <div>Ημερομηνία: ____ / ____ / 2026</div>
+                <div>Υπογραφή Γονέα / Κηδεμόνα: _______________________</div>
+              </div>
+            </body>
+          </html>
+        `);
+        win.document.close();
+      };
+
+      // --- DATA SUITE HANDLERS ---
+      const handleDownloadCsvTemplate = () => {
+        const headers = ['Όνομα', 'Επώνυμο', 'Ημερομηνία Γέννησης', 'ΑΜΚΑ', 'Ονοματεπώνυμο Γονέων', 'Κινητό', 'Σταθερό', 'ΑΦΜ', 'ΔΟΥ', 'Email', 'Διεύθυνση', 'Σημειώσεις/Αλλεργίες', 'Τμήματα', 'Όνομα Γονέα Αποδείξεων'];
+        const exampleRow = ['Μαρία', 'Παπαδοπούλου', '2014-05-12', '12051401234', 'Ελένη & Γιώργος', '6912345678', '2761022111', '123456789', 'Καλαμάτας', 'maria@example.com', 'Κυπαρισσία', 'Ήπιο άσθμα', 'GRADE 4;HIP HOP', 'Γεώργιος Παπαδόπουλος'];
+        
+        const csvContent = '\uFEFF' + [headers.join(','), exampleRow.map(f => `"${f}"`).join(',')].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'house_of_dance_students_template.csv';
+        a.click();
+        showToast('Κατεβήκατε το πρότυπο CSV!');
+      };
+
+      const handleExportCsv = () => {
+        const headers = ['Όνομα', 'Επώνυμο', 'Ημερομηνία Γέννησης', 'ΑΜΚΑ', 'Ονοματεπώνυμο Γονέων', 'Κινητό', 'Σταθερό', 'ΑΦΜ', 'ΔΟΥ', 'Email', 'Διεύθυνση', 'Σημειώσεις/Αλλεργίες', 'Τμήματα', 'Όνομα Γονέα Αποδείξεων'];
+        
+        const rows = students.map(s => [
+          s.firstName || '',
+          s.lastName || '',
+          s.dob || '',
+          s.amka || '',
+          s.parentsNames || '',
+          s.parentsMobiles || '',
+          s.landline || '',
+          s.afm || '',
+          s.doy || '',
+          s.email || '',
+          s.address || '',
+          s.notes || '',
+          (s.classes || []).join(';'),
+          s.receiptDetails || ''
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `house_of_dance_export_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        showToast('Εξαγωγή CSV ολοκληρώθηκε!');
+      };
+
+      const handleExportJson = () => {
+        const backupData = {
+          version: '1.3.0',
+          exportDate: new Date().toISOString(),
+          students,
+          classrooms,
+          schedule,
+          usersList
+        };
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `house_of_dance_backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        showToast('Δημιουργήθηκε πλήρες αντιγράφο JSON!');
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        if (file.name.endsWith('.json')) {
+          reader.onload = (event) => {
+            try {
+              const imported = JSON.parse(event.target.result);
+              if (imported.students && Array.isArray(imported.students)) setStudents(imported.students);
+              if (imported.classrooms && Array.isArray(imported.classrooms)) setClassrooms(imported.classrooms);
+              if (imported.schedule && Array.isArray(imported.schedule)) setSchedule(imported.schedule);
+              showToast('Επιτυχής εισαγωγή JSON!');
+            } catch (err) {
+              showToast('Σφάλμα ανάγνωσης JSON.');
+            }
+          };
+          reader.readAsText(file);
+        } else if (file.name.endsWith('.csv')) {
+          reader.onload = (event) => {
+            try {
+              const text = event.target.result;
+              const lines = text.split(/\r\n|\n/).filter(line => line.trim().length > 0);
+              if (lines.length < 2) return;
+
+              const importedStudents = [];
+              for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"|"$/g, '').trim());
+                if (cols.length >= 2) {
+                  importedStudents.push({
+                    id: 'std_imp_' + Date.now() + '_' + i,
+                    firstName: cols[0] || '',
+                    lastName: cols[1] || '',
+                    dob: cols[2] || '',
+                    amka: cols[3] || '',
+                    parentsNames: cols[4] || '',
+                    parentsMobiles: cols[5] || '',
+                    landline: cols[6] || '',
+                    afm: cols[7] || '',
+                    doy: cols[8] || '',
+                    email: cols[9] || '',
+                    address: cols[10] || '',
+                    notes: cols[11] || '',
+                    classes: cols[12] ? cols[12].split(';').map(c => c.trim()) : [],
+                    receiptDetails: cols[13] || ''
+                  });
+                }
+              }
+              if (importedStudents.length > 0) {
+                setStudents(prev => [...importedStudents, ...prev]);
+                showToast(`Εισήχθησαν ${importedStudents.length} μαθητές!`);
+              }
+            } catch (err) {
+              showToast('Σφάλμα επεξεργασίας CSV.');
+            }
+          };
+          reader.readAsText(file);
+        }
+      };
+
+      // --- FILTERED STUDENT ROSTER ---
+      const filteredStudents = useMemo(() => {
+        const list = students.filter(s => {
+          const fullName = `${s.firstName} ${s.lastName} ${s.parentsNames || ''}`.toLowerCase();
+          const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || (s.amka || '').includes(searchTerm);
+          const matchesClass = classFilter === 'ALL' || (s.classes || []).includes(classFilter);
+          return matchesSearch && matchesClass;
+        });
+        return sortStudentsByClassHierarchy(list);
+      }, [students, searchTerm, classFilter]);
+
+      const totalEnrollmentsCount = useMemo(() => {
+        return students.reduce((acc, s) => acc + (s.classes ? s.classes.length : 0), 0);
+      }, [students]);
+
+      // --- AUTHENTICATION LOCK SCREEN ---
+      if (!currentUser) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-[#0c0d10]">
+            <div className="max-w-md w-full glass-card-amber rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600"></div>
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-3xl font-black mb-3">
+                  🩰
+                </div>
+                <h1 className="text-2xl font-black text-white tracking-wider">HOUSE OF DANCE</h1>
+                <p className="text-xs text-amber-500 font-bold uppercase tracking-widest mt-0.5">KYPARISSIA</p>
+                <p className="text-xs text-gray-400 mt-3">Σύστημα Ασφαλούς Διαχείρισης Μαθητών & Τμημάτων</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                {authError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-xl text-center">
+                    {authError}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1">
+                    Email / Όνομα Χρήστη
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={loginEmail}
+                    onChange={e => setLoginEmail(e.target.value)}
+                    placeholder="admin@houseofdance.gr"
+                    className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 uppercase tracking-wider mb-1">
+                    Κωδικός Πρόσβασης
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500 transition-all"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-amber-500 text-black font-bold py-3.5 rounded-xl hover:bg-amber-400 transition-all text-sm shadow-lg shadow-amber-500/10 mt-2"
+                >
+                  Σύνδεση στο Σύστημα →
+                </button>
+              </form>
+
+              <div className="mt-8 pt-4 border-t border-gray-800/80 text-center text-[11px] text-gray-500 space-y-1">
+                <p>Admin: <span className="text-amber-500 font-semibold">admin@houseofdance.gr</span></p>
+                <p>Κωδικός: <span className="text-amber-500 font-semibold">admin1234password</span></p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // --- MAIN WORKSPACE ---
+      return (
+        <div className="min-h-screen bg-[#0c0d10] text-gray-100 flex flex-col">
+          {/* TOAST POPUP */}
+          {toastMsg && (
+            <div className="fixed bottom-6 right-6 z-50 bg-amber-500 text-black font-bold px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
+              <span>✨</span>
+              <span>{toastMsg}</span>
+            </div>
+          )}
+
+          {/* MAIN HEADER */}
+          <header className="bg-[#16181d] border-b border-amber-500/20 sticky top-0 z-40">
+            <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+              
+              {/* LOGO */}
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 font-bold text-xl">
+                  🩰
+                </div>
+                <div>
+                  <h1 className="text-base font-bold text-white tracking-wide leading-tight">
+                    HOUSE OF DANCE <span className="text-amber-500 font-semibold text-xs">KYPARISSIA</span>
+                  </h1>
+                  <p className="text-[10px] text-gray-400">Σύστημα Διαχείρισης v1.3.0</p>
+                </div>
+              </div>
+
+              {/* LIVE DIAGNOSTIC CLOUD BADGE */}
+              <div className="hidden sm:flex items-center">
+                {cloudStatus === 'synced' && (
+                  <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold rounded-full flex items-center gap-1.5" title="Live Real-time Sync with Firestore">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    🟢 Συνδεδεμένο στο Cloud
+                  </span>
+                )}
+                {cloudStatus === 'local' && (
+                  <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-bold rounded-full flex items-center gap-1.5" title="Operating on local browser storage">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    🟡 Τοπική Αποθήκευση
+                  </span>
+                )}
+                {cloudStatus === 'error' && (
+                  <span className="px-3 py-1 bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-bold rounded-full flex items-center gap-1.5" title={cloudErrMsg || 'Firestore rules or connection error'}>
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                    🔴 Σφάλμα Firestore
+                  </span>
+                )}
+              </div>
+
+              {/* DESKTOP NAV TABS */}
+              <nav className="hidden lg:flex items-center gap-1 bg-[#0c0d10] p-1.5 rounded-2xl border border-gray-800 text-xs font-semibold">
+                <button onClick={() => setActiveTab('home')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'home' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Αρχική</button>
+                <button onClick={() => setActiveTab('students')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'students' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Μαθητές ({students.length})</button>
+                <button onClick={() => setActiveTab('schedule')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'schedule' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Πρόγραμμα</button>
+                <button onClick={() => setActiveTab('print')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'print' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Εκτυπώσεις</button>
+                <button onClick={() => setActiveTab('email')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'email' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Email</button>
+                {currentUser.role === 'admin' && (
+                  <button onClick={() => setActiveTab('users')} className={`px-3.5 py-2 rounded-xl transition-all ${activeTab === 'users' ? 'bg-amber-500 text-black font-bold' : 'text-gray-400 hover:text-white'}`}>Χρήστες</button>
+                )}
+              </nav>
+
+              {/* USER PROFILE & LOGOUT */}
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs font-bold text-white">{currentUser.name}</p>
+                  <p className="text-[10px] text-amber-500 uppercase font-semibold">{currentUser.role}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-3.5 py-2 bg-[#0c0d10] border border-gray-800 text-xs font-semibold text-gray-400 hover:text-white hover:border-gray-700 rounded-xl transition-all"
+                >
+                  Έξοδος
+                </button>
+              </div>
+            </div>
+
+            {/* MOBILE NAV STRIP */}
+            <div className="lg:hidden flex overflow-x-auto gap-2 p-2 bg-[#0c0d10] border-t border-gray-800 text-xs font-semibold">
+              <button onClick={() => setActiveTab('home')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'home' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Αρχική</button>
+              <button onClick={() => setActiveTab('students')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'students' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Μαθητές ({students.length})</button>
+              <button onClick={() => setActiveTab('schedule')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'schedule' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Πρόγραμμα</button>
+              <button onClick={() => setActiveTab('print')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'print' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Εκτυπώσεις</button>
+              <button onClick={() => setActiveTab('email')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'email' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Email</button>
+              {currentUser.role === 'admin' && (
+                <button onClick={() => setActiveTab('users')} className={`px-3 py-1.5 rounded-lg shrink-0 ${activeTab === 'users' ? 'bg-amber-500 text-black' : 'text-gray-400'}`}>Χρήστες</button>
+              )}
+            </div>
+          </header>
+
+          {/* MAIN WORKSPACE CONTENT */}
+          <main className="max-w-7xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+
+            {/* ================= TAB 1: HOME DASHBOARD (4 ROWS) ================= */}
+            {activeTab === 'home' && (
+              <div className="space-y-8">
+                
+                {/* ROW 1: PRIMARY BIG ACTION BUTTONS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={handleOpenNewStudentModal}
+                    className="bg-amber-500 hover:bg-amber-400 text-black font-black p-6 rounded-3xl text-lg flex items-center justify-between shadow-xl shadow-amber-500/10 hover:scale-[1.01] transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">➕</span>
+                      <span>ΝΕΟΣ ΜΑΘΗΤΗΣ</span>
+                    </div>
+                    <span className="text-2xl">→</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('email')}
+                    className="glass-card hover:bg-gray-800/80 text-white font-black p-6 rounded-3xl text-lg flex items-center justify-between border-amber-500/30 hover:scale-[1.01] transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">✉️</span>
+                      <span>ΚΕΝΤΡΟ EMAIL</span>
+                    </div>
+                    <span className="text-2xl text-amber-500">→</span>
+                  </button>
+                </div>
+
+                {/* ROW 2: REALTIME STATS CARDS */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="glass-card p-5 rounded-2xl">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Σύνολο Μαθητών</p>
+                    <p className="text-3xl font-black text-white mt-2">{students.length}</p>
+                    <p className="text-[10px] text-amber-500 mt-1">Εγγεγραμμένοι στο σύστημα</p>
+                  </div>
+                  <div className="glass-card p-5 rounded-2xl">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Συνολικές Εγγραφές</p>
+                    <p className="text-3xl font-black text-white mt-2">{totalEnrollmentsCount}</p>
+                    <p className="text-[10px] text-amber-500 mt-1">Επιλογές μαθημάτων</p>
+                  </div>
+                  <div className="glass-card p-5 rounded-2xl">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ενεργά Τμήματα</p>
+                    <p className="text-3xl font-black text-white mt-2">{DANCE_CLASSES.length}</p>
+                    <p className="text-[10px] text-amber-500 mt-1">Επίσημα τμήματα σχολής</p>
+                  </div>
+                  <div className="glass-card p-5 rounded-2xl">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ενεργές Αίθουσες</p>
+                    <p className="text-3xl font-black text-white mt-2">{classrooms.length}</p>
+                    <p className="text-[10px] text-amber-500 mt-1">Χώροι διδασκαλίας</p>
+                  </div>
+                </div>
+
+                {/* ROW 3: QUICK NAVIGATION SHORTCUTS */}
+                <div>
+                  <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Γρήγορες Πλοηγήσεις</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                    <button onClick={() => setActiveTab('students')} className="glass-card hover:border-amber-500/50 p-4 rounded-2xl text-left transition-all group">
+                      <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">👥</div>
+                      <p className="text-xs font-bold text-white">Λίστα Μαθητών</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Προβολή & Επεξεργασία</p>
+                    </button>
+
+                    <button onClick={() => setActiveTab('print')} className="glass-card hover:border-amber-500/50 p-4 rounded-2xl text-left transition-all group">
+                      <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🖨️</div>
+                      <p className="text-xs font-bold text-white">Κέντρο Εκτυπώσεων</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">5 Έτοιμα Υποδείγματα</p>
+                    </button>
+
+                    <button onClick={() => setActiveTab('email')} className="glass-card hover:border-amber-500/50 p-4 rounded-2xl text-left transition-all group">
+                      <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">✉️</div>
+                      <p className="text-xs font-bold text-white">Κέντρο Email</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Μαζικά Email με BCC</p>
+                    </button>
+
+                    <button onClick={() => setActiveTab('schedule')} className="glass-card hover:border-amber-500/50 p-4 rounded-2xl text-left transition-all group">
+                      <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">📅</div>
+                      <p className="text-xs font-bold text-white">Πρόγραμμα</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Εβδομαδιαία Μαθήματα</p>
+                    </button>
+
+                    <button onClick={() => setActiveTab('schedule')} className="glass-card hover:border-amber-500/50 p-4 rounded-2xl text-left transition-all group">
+                      <div className="text-2xl mb-2 group-hover:scale-110 transition-transform">🏛️</div>
+                      <p className="text-xs font-bold text-white">Αίθουσες</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Διαχείριση Χώρων</p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ROW 4: DATA SUITE */}
+                <div className="glass-card p-6 rounded-3xl border-amber-500/20 space-y-4">
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>💾</span> Διαχείριση Δεδομένων & Αντίγραφα Ασφαλείας
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Εξαγωγή σε Excel (CSV UTF-8 BOM), πλήρες backup JSON και εισαγωγή αρχείων.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                    <button onClick={handleDownloadCsvTemplate} className="px-4 py-3 bg-[#0c0d10] border border-gray-800 hover:border-amber-500/50 text-gray-200 hover:text-white rounded-2xl text-xs font-semibold text-left transition-all">
+                      <p className="text-amber-500 font-bold mb-0.5">📄 Πρότυπο CSV Excel</p>
+                      <p className="text-[10px] text-gray-400">Κατεβάστε έτοιμο φορμάτ</p>
+                    </button>
+
+                    <button onClick={handleExportCsv} className="px-4 py-3 bg-[#0c0d10] border border-gray-800 hover:border-amber-500/50 text-gray-200 hover:text-white rounded-2xl text-xs font-semibold text-left transition-all">
+                      <p className="text-amber-500 font-bold mb-0.5">📊 Εξαγωγή σε CSV</p>
+                      <p className="text-[10px] text-gray-400">Λίστα μαθητών για Excel</p>
+                    </button>
+
+                    <button onClick={handleExportJson} className="px-4 py-3 bg-[#0c0d10] border border-gray-800 hover:border-amber-500/50 text-gray-200 hover:text-white rounded-2xl text-xs font-semibold text-left transition-all">
+                      <p className="text-amber-500 font-bold mb-0.5">🛡️ Backup JSON</p>
+                      <p className="text-[10px] text-gray-400">Πλήρες αντίγραφο ασφαλείας</p>
+                    </button>
+
+                    <label className="px-4 py-3 bg-[#0c0d10] border border-gray-800 hover:border-amber-500/50 text-gray-200 hover:text-white rounded-2xl text-xs font-semibold text-left transition-all cursor-pointer block">
+                      <p className="text-amber-500 font-bold mb-0.5">📥 Εισαγωγή CSV / JSON</p>
+                      <p className="text-[10px] text-gray-400">Ανεβάστε αρχείο δεδομένων</p>
+                      <input type="file" accept=".csv,.json" onChange={handleFileUpload} className="hidden" />
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ================= TAB 2: STUDENTS ROSTER ================= */}
+            {activeTab === 'students' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-black text-white">Μητρώο Μαθητών</h2>
+                    <p className="text-xs text-gray-400">Διαχείριση καρτελών και εγγραφών σχολής</p>
+                  </div>
+                  <button
+                    onClick={handleOpenNewStudentModal}
+                    className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10"
+                  >
+                    <span>➕ Νέος Μαθητής</span>
+                  </button>
+                </div>
+
+                {/* SEARCH & CLASS FILTER */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <input
+                      type="text"
+                      placeholder="Αναζήτηση με όνομα, επίθετο, ΑΜΚΑ ή όνομα γονέα..."
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="w-full bg-[#16181d] border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-500 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <select
+                      value={classFilter}
+                      onChange={e => setClassFilter(e.target.value)}
+                      className="w-full bg-[#16181d] border border-gray-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-500 transition-all"
+                    >
+                      <option value="ALL">Όλα τα Τμήματα ({students.length})</option>
+                      {DANCE_CLASSES.map(cls => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* TABLE */}
+                <div className="glass-card rounded-2xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#0c0d10] text-gray-400 border-b border-gray-800 uppercase text-[10px] tracking-wider">
+                        <tr>
+                          <th className="p-4">Μαθητής / Μαθήτρια</th>
+                          <th className="p-4">Ημ. Γέννησης</th>
+                          <th className="p-4">Γονείς / Επικοινωνία</th>
+                          <th className="p-4">Εγγεγραμμένα Τμήματα</th>
+                          <th className="p-4 text-center">Ενέργειες</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/80">
+                        {filteredStudents.length === 0 ? (
+                          <tr>
+                            <td colSpan="5" className="p-8 text-center text-gray-500 text-xs">
+                              Δεν βρέθηκαν μαθητές με τα συγκεκριμένα κριτήρια.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredStudents.map(s => (
+                            <tr key={s.id} className="hover:bg-gray-800/30 transition-colors">
+                              <td className="p-4">
+                                <div className="font-bold text-white flex items-center gap-1.5">
+                                  <span>{s.lastName} {s.firstName}</span>
+                                  {s.notes && <span title={`Σημείωση: ${s.notes}`} className="text-amber-500 text-xs">⚠️</span>}
+                                </div>
+                                <div className="text-[10px] text-gray-500">AMKA: {s.amka || '-'}</div>
+                              </td>
+                              <td className="p-4 text-gray-300 font-medium">{s.dob || '-'}</td>
+                              <td className="p-4">
+                                <div className="text-gray-200 font-medium">{s.parentsMobiles || '-'}</div>
+                                <div className="text-[10px] text-gray-500">{s.parentsNames || '-'}</div>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-wrap gap-1">
+                                  {(s.classes || []).map(cls => (
+                                    <span key={cls} className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md text-[10px] font-semibold">
+                                      {cls}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => setKartellaStudent(s)}
+                                    title="Προβολή Καρτέλας"
+                                    className="p-2 bg-gray-900 border border-gray-800 hover:border-amber-500/50 text-amber-500 rounded-lg text-xs font-semibold"
+                                  >
+                                    🎴 Καρτέλα
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenEditStudentModal(s)}
+                                    title="Επεξεργασία"
+                                    className="p-2 bg-gray-900 border border-gray-800 hover:border-gray-700 text-gray-300 hover:text-white rounded-lg text-xs"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteStudent(s.id)}
+                                    title="Διαγραφή"
+                                    className="p-2 bg-gray-900 border border-gray-800 hover:border-red-500/50 text-red-400 rounded-lg text-xs"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ================= TAB 3: SCHEDULE & CLASSROOMS ================= */}
+            {activeTab === 'schedule' && (
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-black text-white">Πρόγραμμα & Αίθουσες</h2>
+                    <p className="text-xs text-gray-400">Διαχείριση αιθουσών διδασκαλίας και εβδομαδιαίων μαθημάτων</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsRoomModalOpen(true)}
+                      className="px-4 py-2.5 bg-gray-900 border border-gray-800 hover:border-amber-500/50 text-amber-500 rounded-xl text-xs font-bold transition-all"
+                    >
+                      🏛️ Διαχείριση Αιθουσών ({classrooms.length})
+                    </button>
+                    <button
+                      onClick={handleOpenNewSlotModal}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all"
+                    >
+                      ➕ Νέο Μάθημα
+                    </button>
+                    <button
+                      onClick={handlePrintSchedule}
+                      className="px-4 py-2.5 bg-gray-900 border border-gray-800 hover:border-gray-700 text-gray-200 rounded-xl text-xs font-bold transition-all"
+                    >
+                      🖨️ Εκτύπωση A4
+                    </button>
+                  </div>
+                </div>
+
+                {/* ROOM FILTER SWITCHER */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    onClick={() => setScheduleRoomFilter('ALL')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${scheduleRoomFilter === 'ALL' ? 'bg-amber-500 text-black' : 'bg-[#16181d] text-gray-400 border border-gray-800'}`}
+                  >
+                    Όλες οι Αίθουσες
+                  </button>
+                  {classrooms.map(room => (
+                    <button
+                      key={room}
+                      onClick={() => setScheduleRoomFilter(room)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${scheduleRoomFilter === room ? 'bg-amber-500 text-black' : 'bg-[#16181d] text-gray-400 border border-gray-800'}`}
+                    >
+                      📍 {room}
+                    </button>
+                  ))}
+                </div>
+
+                {/* WEEKLY TIMETABLE GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                  {WEEK_DAYS.map(day => {
+                    const daySlots = schedule
+                      .filter(s => (scheduleRoomFilter === 'ALL' || s.classroom === scheduleRoomFilter) && s.day === day)
+                      .sort((a,b) => a.startTime.localeCompare(b.startTime));
+
+                    return (
+                      <div key={day} className="glass-card rounded-2xl overflow-hidden flex flex-col">
+                        <div className="bg-amber-500/10 border-b border-amber-500/20 p-3 text-center">
+                          <p className="text-xs font-extrabold text-amber-500 uppercase tracking-wider">{day}</p>
+                          <p className="text-[10px] text-gray-400">{daySlots.length} μαθήματα</p>
+                        </div>
+                        <div className="p-3 space-y-3 flex-1">
+                          {daySlots.length === 0 ? (
+                            <p className="text-[11px] text-gray-600 text-center py-6">Κανένα μάθημα</p>
+                          ) : (
+                            daySlots.map(s => (
+                              <div key={s.id} className="bg-[#0c0d10] border border-gray-800 rounded-xl p-3 hover:border-amber-500/40 transition-all space-y-1 relative group">
+                                <div className="flex justify-between items-start">
+                                  <span className="text-[11px] font-bold text-amber-400">⏰ {s.startTime} - {s.endTime}</span>
+                                  <div className="flex gap-1 opacity-80 group-hover:opacity-100">
+                                    <button onClick={() => handleOpenEditSlotModal(s)} className="text-[10px] text-gray-400 hover:text-white">✏️</button>
+                                    <button onClick={() => handleDeleteSlot(s.id)} className="text-[10px] text-red-400">🗑️</button>
+                                  </div>
+                                </div>
+                                <p className="text-xs font-bold text-white">{s.danceClass}</p>
+                                <p className="text-[10px] text-gray-400">📍 {s.classroom}</p>
+                                <p className="text-[10px] text-gray-500">👤 {s.teacher}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ================= TAB 4: PRINT CENTER (5 ENGINES) ================= */}
+            {activeTab === 'print' && (
+              <div className="space-y-6 max-w-5xl">
+                <div>
+                  <h2 className="text-xl font-black text-white">Κέντρο Εκτυπώσεων</h2>
+                  <p className="text-xs text-gray-400">5 Εξειδικευμένα πρότυπα εκτύπωσης A4 με στήλη τμήματος αριστερά από το ονοματεπώνυμο</p>
+                </div>
+
+                {/* PRINT CLASS FILTER SELECTOR */}
+                <div className="glass-card p-5 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-amber-500 uppercase tracking-wider mb-1">
+                      Επιλογή Τμήματος για Εκτύπωση
+                    </label>
+                    <p className="text-[11px] text-gray-400">
+                      Επιλέξτε συγκεκριμένο τμήμα ή "Όλα τα Τμήματα" για πλήρη σχολική κατάσταση.
+                    </p>
+                  </div>
+                  <select
+                    value={printClassFilter}
+                    onChange={e => setPrintClassFilter(e.target.value)}
+                    className="w-full md:w-72 bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                  >
+                    <option value="ALL">Όλα τα Τμήματα ({students.length} μαθητές)</option>
+                    {DANCE_CLASSES.map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 5 PRINT ENGINE CARDS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  
+                  {/* ENGINE 1: ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ */}
+                  <div className="glass-card-amber p-5 rounded-3xl space-y-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-2xl">💳</span>
+                      <h3 className="text-sm font-bold text-white mt-1">1. ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Περιλαμβάνει 5 τετράγωνα κουτάκια (1, 2, 3, 4, 5) για χειρόγραφες σημειώσεις. Χωρίς ποσά σε Ευρώ.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePrintPaymentList}
+                      className="w-full bg-amber-500 text-black font-black py-3 rounded-xl text-xs hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/10"
+                    >
+                      🖨️ Εκτύπωση ΛΙΣΤΑ ΠΛΗΡΩΜΩΝ
+                    </button>
+                  </div>
+
+                  {/* ENGINE 2: ΛΙΣΤΑ ΠΑΡΟΥΣΙΩΝ */}
+                  <div className="glass-card p-5 rounded-3xl space-y-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-2xl">📋</span>
+                      <h3 className="text-sm font-bold text-white mt-1">2. ΛΙΣΤΑ ΠΑΡΟΥΣΙΩΝ</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Κατάσταση 12 μαθημάτων με κουτάκια παρουσιών και πεδίο υπογραφής καθηγητή.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePrintAttendanceSheet}
+                      className="w-full bg-gray-900 border border-gray-800 hover:border-gray-700 text-white font-bold py-3 rounded-xl text-xs transition-all"
+                    >
+                      🖨️ Εκτύπωση ΛΙΣΤΑ ΠΑΡΟΥΣΙΩΝ
+                    </button>
+                  </div>
+
+                  {/* ENGINE 3: ΚΑΤΑΣΤΑΣΗ ΤΜΗΜΑΤΟΣ */}
+                  <div className="glass-card p-5 rounded-3xl space-y-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-2xl">🩰</span>
+                      <h3 className="text-sm font-bold text-white mt-1">3. ΚΑΤΑΣΤΑΣΗ ΤΜΗΜΑΤΟΣ</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Λίστα καθηγητή με τηλέφωνα ανάγκης και διακριτική επισήμανση ιατρικών σημειώσεων ⚠️.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePrintTeacherRoster}
+                      className="w-full bg-gray-900 border border-gray-800 hover:border-gray-700 text-white font-bold py-3 rounded-xl text-xs transition-all"
+                    >
+                      🖨️ Εκτύπωση ΚΑΤΑΣΤΑΣΗΣ
+                    </button>
+                  </div>
+
+                  {/* ENGINE 4: ΚΑΤΑΛΟΓΟΣ ΕΠΙΚΟΙΝΩΝΙΑΣ */}
+                  <div className="glass-card p-5 rounded-3xl space-y-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-2xl">📞</span>
+                      <h3 className="text-sm font-bold text-white mt-1">4. ΚΑΤΑΛΟΓΟΣ ΕΠΙΚΟΙΝΩΝΙΑΣ</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Πλήρης τηλεφωνικός κατάλογος γονέων, κινητά, σταθερά και διευθύνσεις email.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePrintParentDirectory}
+                      className="w-full bg-gray-900 border border-gray-800 hover:border-gray-700 text-white font-bold py-3 rounded-xl text-xs transition-all"
+                    >
+                      🖨️ Εκτύπωση ΚΑΤΑΛΟΓΟΥ
+                    </button>
+                  </div>
+
+                  {/* ENGINE 5: ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ */}
+                  <div className="glass-card p-5 rounded-3xl space-y-3 flex flex-col justify-between">
+                    <div>
+                      <span className="text-2xl">📅</span>
+                      <h3 className="text-sm font-bold text-white mt-1">5. ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ</h3>
+                      <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">
+                        Πρόγραμμα μαθημάτων σε οριζόντια διάταξη (A4 Landscape) για τον πίνακα ανακοινώσεων.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePrintSchedule}
+                      className="w-full bg-gray-900 border border-gray-800 hover:border-gray-700 text-white font-bold py-3 rounded-xl text-xs transition-all"
+                    >
+                      🖨️ Εκτύπωση ΠΡΟΓΡΑΜΜΑΤΟΣ
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* ================= TAB 5: EMAIL CENTER ================= */}
+            {activeTab === 'email' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-black text-white">Email Center</h2>
+                  <p className="text-xs text-gray-400">Σύνταξη και αντιγραφή emails με διασφάλιση απορρήτου (BCC Copy Workflow)</p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* LEFT COMPOSER FORM */}
+                  <div className="glass-card p-6 rounded-3xl space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">
+                        Φιλτράρισμα Παραληπτών ανά Τμήμα
+                      </label>
+                      <select
+                        value={emailTargetClass}
+                        onChange={e => setEmailTargetClass(e.target.value)}
+                        className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                      >
+                        <option value="ALL">Όλοι οι Μαθητές ({filteredRecipientEmails.length} με Email)</option>
+                        {DANCE_CLASSES.map(cls => (
+                          <option key={cls} value={cls}>{cls}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* RECIPIENT EMAILS TEXTBOX */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[11px] font-bold text-gray-400 uppercase">
+                          Διευθύνσεις Email Παραληπτών ({filteredRecipientEmails.length})
+                        </label>
+                        <button
+                          onClick={() => copyToClipboard(formattedBccString, `Αντιγράφηκαν ${filteredRecipientEmails.length} emails!`)}
+                          className="text-[10px] font-bold text-amber-500 hover:underline"
+                        >
+                          📋 Αντιγραφή Διευθύνσεων
+                        </button>
+                      </div>
+                      <textarea
+                        readOnly
+                        rows="3"
+                        value={formattedBccString || 'Δεν βρέθηκαν emails για αυτό το τμήμα.'}
+                        className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-xs text-amber-400 font-mono focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">
+                        Θέμα Μηνύματος
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="π.χ. Ενημέρωση για τις Πρόβες Παράστασης..."
+                        value={emailSubject}
+                        onChange={e => setEmailSubject(e.target.value)}
+                        className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">
+                        Κείμενο Μηνύματος
+                      </label>
+                      <textarea
+                        rows="6"
+                        placeholder="Γράψτε το μήνυμά σας εδώ..."
+                        value={emailBody}
+                        onChange={e => setEmailBody(e.target.value)}
+                        className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                      <button
+                        onClick={() => copyToClipboard(formattedBccString, `Αντιγράφηκαν ${filteredRecipientEmails.length} emails στο Clipboard!`)}
+                        className="w-full bg-amber-500 text-black font-extrabold py-3 rounded-xl text-xs hover:bg-amber-400 transition-all"
+                      >
+                        📋 ΑΝΤΙΓΡΑΦΗ ΔΙΕΥΘΥΝΣΕΩΝ EMAIL
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(formattedFullEmailBody, 'Αντιγράφηκε το πλήρες κείμενο του email!')}
+                        className="w-full bg-gray-900 border border-gray-800 hover:border-gray-700 text-white font-bold py-3 rounded-xl text-xs transition-all"
+                      >
+                        📄 ΑΝΤΙΓΡΑΦΗ ΚΕΙΜΕΝΟΥ EMAIL
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* RIGHT PREVIEW CARD */}
+                  <div className="glass-card-amber p-6 rounded-3xl space-y-4">
+                    <p className="text-xs font-extrabold text-amber-500 uppercase tracking-widest">
+                      Ζωντανή Προεπισκόπηση Format Email
+                    </p>
+                    <div className="bg-[#0c0d10] border border-gray-800 rounded-2xl p-5 text-xs space-y-4 text-gray-300 leading-relaxed font-sans">
+                      <div className="border-b border-gray-800 pb-3">
+                        <p className="font-bold text-white text-sm">House of Dance Kyparissia</p>
+                        <p className="text-[10px] text-amber-500 uppercase font-semibold">ΣΧΟΛΗ ΧΟΡΟΥ ΑΝΑΓΝΩΡΙΣΜΕΝΗ ΑΠΟ ΤΟ ΚΡΑΤΟΣ</p>
+                        <p className="text-[10px] text-gray-500">web: houseofdance.gr | e-mail: houseofdance15@yahoo.com</p>
+                        <p className="text-[10px] text-gray-500">Τηλ.: 27610 62192 | Κιν.: 6937470937</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-amber-400 font-bold">{emailSubject || '(Χωρίς Θέμα)'}</p>
+                        <p className="whitespace-pre-wrap text-gray-200 mt-2">{emailBody || 'Το κείμενο του email θα εμφανιστεί εδώ...'}</p>
+                      </div>
+
+                      <div className="border-t border-gray-800 pt-3 text-[11px] text-gray-400">
+                        <p>Ευχαριστώ,</p>
+                        <p className="font-bold text-white">Susan Jane Garrard</p>
+                        <p className="text-[10px] text-gray-600 mt-2">________________________________________</p>
+                        <p className="text-[9px] text-gray-600">Παρακαλώ μην απαντήσετε σε αυτό το μήνυμα μέσω e-mail.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* ================= TAB 6: ADMIN USERS ================= */}
+            {activeTab === 'users' && currentUser.role === 'admin' && (
+              <div className="space-y-6 max-w-4xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-white">Διαχείριση Χρηστών & Προσβάσεων</h2>
+                    <p className="text-xs text-gray-400">Δημιουργία και διαχείριση λογαριασμών προσωπικού</p>
+                  </div>
+                  <button
+                    onClick={() => setIsUserModalOpen(true)}
+                    className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded-xl text-xs transition-all"
+                  >
+                    ➕ Νέος Χρήστης
+                  </button>
+                </div>
+
+                <div className="glass-card rounded-2xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#0c0d10] text-gray-400 border-b border-gray-800 uppercase text-[10px]">
+                      <tr>
+                        <th className="p-4">Ονοματεπώνυμο</th>
+                        <th className="p-4">Email / Username</th>
+                        <th className="p-4">Ρόλος</th>
+                        <th className="p-4 text-center">Ενέργειες</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {usersList.map(u => (
+                        <tr key={u.id}>
+                          <td className="p-4 font-bold text-white">{u.name}</td>
+                          <td className="p-4 text-gray-300">{u.username}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-gray-800 text-gray-300'}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            {u.id !== DEFAULT_ADMIN.id && (
+                              <button
+                                onClick={() => handleDeleteUser(u.id)}
+                                className="p-1.5 bg-gray-900 text-red-400 hover:text-red-300 rounded-lg text-xs"
+                              >
+                                🗑️ Διαγραφή
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+          </main>
+
+          {/* ================= MODAL 1: ADD / EDIT STUDENT ================= */}
+          {isStudentModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-[#16181d] border border-amber-500/30 max-w-3xl w-full p-6 sm:p-8 rounded-3xl space-y-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-white">
+                      {editingStudentId ? 'Επεξεργασία Καρτέλας Μαθητή' : 'Νέα Εγγραφή Μαθητή'}
+                    </h3>
+                    <p className="text-xs text-amber-500">Συμπληρώστε τα 14 πεδία του μητρώου</p>
+                  </div>
+                  <button onClick={() => setIsStudentModalOpen(false)} className="text-gray-400 hover:text-white text-lg font-bold">✕</button>
+                </div>
+
+                <form onSubmit={handleSaveStudent} className="space-y-4 text-xs">
+                  {/* PERSONAL DETAILS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Όνομα *</label>
+                      <input type="text" required value={studentForm.firstName} onChange={e => setStudentForm({...studentForm, firstName: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Επίθετο *</label>
+                      <input type="text" required value={studentForm.lastName} onChange={e => setStudentForm({...studentForm, lastName: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Ημερομηνία Γέννησης</label>
+                      <input type="date" value={studentForm.dob} onChange={e => setStudentForm({...studentForm, dob: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">ΑΜΚΑ</label>
+                      <input type="text" value={studentForm.amka} onChange={e => setStudentForm({...studentForm, amka: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Διεύθυνση Κατοικίας</label>
+                      <input type="text" value={studentForm.address} onChange={e => setStudentForm({...studentForm, address: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                  </div>
+
+                  {/* PARENTS & CONTACT */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-gray-800">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Ονοματεπώνυμο Γονέων</label>
+                      <input type="text" value={studentForm.parentsNames} onChange={e => setStudentForm({...studentForm, parentsNames: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Κινητό Επικοινωνίας</label>
+                      <input type="text" value={studentForm.parentsMobiles} onChange={e => setStudentForm({...studentForm, parentsMobiles: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Σταθερό Τηλέφωνο</label>
+                      <input type="text" value={studentForm.landline} onChange={e => setStudentForm({...studentForm, landline: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                  </div>
+
+                  {/* TAX DETAILS & EMAIL */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Email</label>
+                      <input type="email" value={studentForm.email} onChange={e => setStudentForm({...studentForm, email: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">ΑΦΜ</label>
+                      <input type="text" value={studentForm.afm} onChange={e => setStudentForm({...studentForm, afm: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">ΔΟΥ</label>
+                      <input type="text" value={studentForm.doy} onChange={e => setStudentForm({...studentForm, doy: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                  </div>
+
+                  {/* DANCE CLASSES CHECKBOXES */}
+                  <div className="pt-2 border-t border-gray-800">
+                    <label className="block text-amber-500 font-bold mb-2">Εγγραφή σε Τμήματα Χορού</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#0c0d10] p-3 rounded-2xl border border-gray-800 max-h-40 overflow-y-auto">
+                      {DANCE_CLASSES.map(cls => (
+                        <label key={cls} className="flex items-center gap-2 cursor-pointer text-[11px] text-gray-300 hover:text-white">
+                          <input
+                            type="checkbox"
+                            checked={(studentForm.classes || []).includes(cls)}
+                            onChange={() => handleToggleClass(cls)}
+                            className="rounded border-gray-700 text-amber-500 focus:ring-amber-500"
+                          />
+                          <span>{cls}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* NOTES & GUARDIAN NAME FOR RECEIPTS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Ιατρικές Σημειώσεις / Αλλεργίες ⚠️</label>
+                      <textarea rows="2" value={studentForm.notes} onChange={e => setStudentForm({...studentForm, notes: e.target.value})} placeholder="π.χ. Άσθμα..." className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Όνοματεπώνυμο Γονέα (Για Αποδείξεις)</label>
+                      <textarea rows="2" value={studentForm.receiptDetails} onChange={e => setStudentForm({...studentForm, receiptDetails: e.target.value})} placeholder="Ονοματεπώνυμο γονέα για έκδοση αποδείξεων..." className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white focus:border-amber-500" />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                    <button type="button" onClick={() => setIsStudentModalOpen(false)} className="px-5 py-2.5 bg-gray-900 text-gray-400 rounded-xl font-bold">Ακύρωση</button>
+                    <button type="submit" className="px-6 py-2.5 bg-amber-500 text-black font-extrabold rounded-xl hover:bg-amber-400 transition-all">Αποθήκευση Καρτέλας</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ================= MODAL 2: KARTELLA VIEW ================= */}
+          {kartellaStudent && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-[#16181d] border border-amber-500/40 max-w-2xl w-full p-6 sm:p-8 rounded-3xl space-y-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-4">
+                  <div>
+                    <h3 className="text-xl font-black text-white">ΚΑΡΤΕΛΑ ΜΑΘΗΤΗ</h3>
+                    <p className="text-xs text-amber-500 font-bold">{kartellaStudent.lastName} {kartellaStudent.firstName}</p>
+                  </div>
+                  <button onClick={() => setKartellaStudent(null)} className="text-gray-400 hover:text-white text-lg font-bold">✕</button>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  <div className="bg-[#0c0d10] p-4 rounded-2xl border border-gray-800 space-y-2">
+                    <p className="text-amber-500 font-bold uppercase text-[10px]">Προσωπικά Στοιχεία</p>
+                    <p><span className="text-gray-400">Ημ. Γέννησης:</span> <span className="font-semibold text-white">{kartellaStudent.dob || '-'}</span></p>
+                    <p><span className="text-gray-400">ΑΜΚΑ:</span> <span className="font-semibold text-white">{kartellaStudent.amka || '-'}</span></p>
+                    <p><span className="text-gray-400">Διεύθυνση:</span> <span className="font-semibold text-white">{kartellaStudent.address || '-'}</span></p>
+                  </div>
+
+                  <div className="bg-[#0c0d10] p-4 rounded-2xl border border-gray-800 space-y-2">
+                    <p className="text-amber-500 font-bold uppercase text-[10px]">Γονείς & Επικοινωνία</p>
+                    <p><span className="text-gray-400">Γονείς:</span> <span className="font-semibold text-white">{kartellaStudent.parentsNames || '-'}</span></p>
+                    <p><span className="text-gray-400">Κινητό:</span> <span className="font-semibold text-white">{kartellaStudent.parentsMobiles || '-'}</span></p>
+                    <p><span className="text-gray-400">Email:</span> <span className="font-semibold text-white">{kartellaStudent.email || '-'}</span></p>
+                  </div>
+
+                  <div className="bg-[#0c0d10] p-4 rounded-2xl border border-gray-800 space-y-2">
+                    <p className="text-amber-500 font-bold uppercase text-[10px]">Εγγεγραμμένα Τμήματα</p>
+                    <p className="text-amber-400 font-bold text-sm">{(kartellaStudent.classes || []).join(', ') || 'Κανένα'}</p>
+                  </div>
+
+                  <div className="bg-[#0c0d10] p-4 rounded-2xl border border-gray-800 space-y-2">
+                    <p className="text-amber-500 font-bold uppercase text-[10px]">Στοιχεία Αποδείξεων</p>
+                    <p><span className="text-gray-400">Όνομα Γονέα:</span> <span className="font-semibold text-white">{kartellaStudent.receiptDetails || '-'}</span></p>
+                  </div>
+
+                  {kartellaStudent.notes && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl">
+                      <p className="text-amber-400 font-bold uppercase text-[10px]">⚠️ Ιατρικές Σημειώσεις</p>
+                      <p className="text-white mt-1">{kartellaStudent.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-gray-800">
+                  <button onClick={() => setKartellaStudent(null)} className="px-4 py-2 bg-gray-900 text-gray-400 rounded-xl font-bold text-xs">Κλείσιμο</button>
+                  <button onClick={() => handlePrintKartella(kartellaStudent)} className="px-6 py-2.5 bg-amber-500 text-black font-extrabold rounded-xl text-xs">🖨️ Εκτύπωση Καρτέλας A4</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= MODAL 3: CLASSROOM MANAGER ================= */}
+          {isRoomModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-[#16181d] border border-amber-500/30 max-w-lg w-full p-6 rounded-3xl space-y-6">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+                  <h3 className="text-base font-black text-white">Διαχείριση Αιθουσών Σχολής</h3>
+                  <button onClick={() => setIsRoomModalOpen(false)} className="text-gray-400 hover:text-white font-bold">✕</button>
+                </div>
+
+                <form onSubmit={handleAddRoom} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Όνομα νέας αίθουσας (π.χ. Studio C)..."
+                    value={newRoomName}
+                    onChange={e => setNewRoomName(e.target.value)}
+                    className="flex-1 bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-xs text-white"
+                  />
+                  <button type="submit" className="bg-amber-500 text-black font-bold px-4 py-2.5 rounded-xl text-xs">➕ Προσθήκη</button>
+                </form>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {classrooms.map((room, idx) => (
+                    <div key={room} className="bg-[#0c0d10] border border-gray-800 p-3 rounded-xl flex items-center justify-between text-xs">
+                      <span className="font-bold text-white">📍 {room}</span>
+                      <button onClick={() => handleDeleteRoom(idx)} className="text-red-400 hover:text-red-300 font-semibold">🗑️ Διαγραφή</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-right pt-2 border-t border-gray-800">
+                  <button onClick={() => setIsRoomModalOpen(false)} className="px-4 py-2 bg-gray-900 text-gray-400 text-xs font-bold rounded-xl">Έτοιμο</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= MODAL 4: ADD/EDIT SCHEDULE SLOT ================= */}
+          {isSlotModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-[#16181d] border border-amber-500/30 max-w-md w-full p-6 rounded-3xl space-y-4 text-xs">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+                  <h3 className="text-base font-black text-white">
+                    {editingSlotId ? 'Επεξεργασία Μαθήματος' : 'Προσθήκη Μαθήματος στο Πρόγραμμα'}
+                  </h3>
+                  <button onClick={() => setIsSlotModalOpen(false)} className="text-gray-400 font-bold">✕</button>
+                </div>
+
+                <form onSubmit={handleSaveSlot} className="space-y-3">
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Ημέρα Εβδομάδας</label>
+                    <select value={slotForm.day} onChange={e => setSlotForm({...slotForm, day: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white">
+                      {WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Ώρα Έναρξης</label>
+                      <input type="time" value={slotForm.startTime} onChange={e => setSlotForm({...slotForm, startTime: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 font-bold mb-1">Ώρα Λήξης</label>
+                      <input type="time" value={slotForm.endTime} onChange={e => setSlotForm({...slotForm, endTime: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Τμήμα Χορού</label>
+                    <select value={slotForm.danceClass} onChange={e => setSlotForm({...slotForm, danceClass: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white">
+                      {DANCE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Αίθουσα</label>
+                    <select value={slotForm.classroom} onChange={e => setSlotForm({...slotForm, classroom: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white">
+                      {classrooms.map(room => <option key={room} value={room}>{room}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Διδάσκων / Καθηγητής</label>
+                    <input type="text" value={slotForm.teacher} onChange={e => setSlotForm({...slotForm, teacher: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-800">
+                    <button type="button" onClick={() => setIsSlotModalOpen(false)} className="px-4 py-2 bg-gray-900 text-gray-400 rounded-xl">Ακύρωση</button>
+                    <button type="submit" className="px-5 py-2 bg-amber-500 text-black font-bold rounded-xl">Αποθήκευση</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ================= MODAL 5: ADD USER ================= */}
+          {isUserModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-[#16181d] border border-amber-500/30 max-w-md w-full p-6 rounded-3xl space-y-4 text-xs">
+                <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+                  <h3 className="text-base font-black text-white">Δημιουργία Νέου Χρήστη</h3>
+                  <button onClick={() => setIsUserModalOpen(false)} className="text-gray-400 font-bold">✕</button>
+                </div>
+
+                <form onSubmit={handleSaveUser} className="space-y-3">
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Ονοματεπώνυμο</label>
+                    <input type="text" required value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Email / Username</label>
+                    <input type="text" required value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Κωδικός Πρόσβασης</label>
+                    <input type="password" required value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 font-bold mb-1">Ρόλος</label>
+                    <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full bg-[#0c0d10] border border-gray-800 rounded-xl p-2.5 text-white">
+                      <option value="staff">Staff (Γραμματεία)</option>
+                      <option value="admin">Admin (Διαχειριστής)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-800">
+                    <button type="button" onClick={() => setIsUserModalOpen(false)} className="px-4 py-2 bg-gray-900 text-gray-400 rounded-xl">Ακύρωση</button>
+                    <button type="submit" className="px-5 py-2 bg-amber-500 text-black font-bold rounded-xl">Δημιουργία</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ================= DELETE CONFIRMATION DIALOG ================= */}
+          {deleteModal.open && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-[#16181d] border border-red-500/40 max-w-sm w-full p-6 rounded-3xl space-y-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-2xl flex items-center justify-center mx-auto">
+                  ⚠️
+                </div>
+                <h3 className="text-base font-bold text-white">{deleteModal.title}</h3>
+                <p className="text-xs text-gray-400">{deleteModal.message}</p>
+                <div className="flex justify-center gap-3 pt-2">
+                  <button onClick={() => setDeleteModal({ open: false, title: '', message: '', onConfirm: null })} className="px-4 py-2 bg-gray-900 text-gray-400 text-xs font-bold rounded-xl">Ακύρωση</button>
+                  <button onClick={deleteModal.onConfirm} className="px-5 py-2 bg-red-500 text-white text-xs font-bold rounded-xl">Διαγραφή</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <footer className="bg-[#16181d] border-t border-gray-800/80 py-6 text-center text-xs text-gray-500">
+            <p className="font-semibold text-gray-400">HOUSE OF DANCE KYPARISSIA</p>
+            <p className="text-[10px] text-gray-600 mt-1">Σχολή Χορού Αναγνωρισμένη από το Κράτος | Susan Jane Garrard</p>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
